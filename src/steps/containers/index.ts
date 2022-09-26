@@ -1,6 +1,8 @@
 import {
+  createDirectRelationship,
   getRawData,
   IntegrationStepExecutionContext,
+  RelationshipClass,
   Step,
 } from '@jupiterone/integration-sdk-core';
 import { TenableIntegrationConfig } from '../../config';
@@ -13,20 +15,48 @@ import {
   createUnwantedProgramEntity,
   malwareEntityKey,
   unwantedProgramEntityKey,
+  createContainerRepositoryEntity,
+  createAccountContainerRepositoryRelationship,
 } from './converters';
 import { getAccount } from '../../initializeContext';
 import TenableClient from '../../tenable/TenableClient';
-import { Container } from '../../tenable/client';
+import { ContainerImage } from '../../tenable/client';
 import {
-  createAccountContainerRelationship,
-  createContainerEntity,
+  createAccountContainerImageRelationship,
+  createContainerImageEntity,
   createContainerFindingEntity,
   createContainerReportRelationship,
   createReportEntity,
   createReportFindingRelationship,
 } from './converters';
+import { generateEntityKey } from '../../utils/generateKey';
 
-export async function fetchContainers(
+export async function fetchContainerRepositories(
+  context: IntegrationStepExecutionContext<TenableIntegrationConfig>,
+): Promise<void> {
+  const {
+    jobState,
+    logger,
+    instance: {
+      config: { accessKey, secretKey },
+    },
+  } = context;
+  const client = new TenableClient({
+    logger,
+    accessToken: accessKey,
+    secretToken: secretKey,
+  });
+
+  const account = getAccount(context);
+  await client.iterateContainerRepositories(async (repository) => {
+    await jobState.addEntity(createContainerRepositoryEntity(repository));
+    await jobState.addRelationship(
+      createAccountContainerRepositoryRelationship(account, repository),
+    );
+  });
+}
+
+export async function fetchContainerImages(
   context: IntegrationStepExecutionContext<TenableIntegrationConfig>,
 ): Promise<void> {
   const { jobState, logger, instance } = context;
@@ -37,13 +67,49 @@ export async function fetchContainers(
   });
 
   const account = getAccount(context);
-  const containers = await client.fetchContainers();
-  for (const container of containers) {
-    await jobState.addEntity(createContainerEntity(container));
+  await client.iterateContainerImages(async (image) => {
+    const imageEntity = createContainerImageEntity(image);
+    await jobState.addEntity(imageEntity);
     await jobState.addRelationship(
-      createAccountContainerRelationship(account, container),
+      createAccountContainerImageRelationship(account, image),
     );
-  }
+  });
+}
+
+export async function buildRepositoryImagesRelationship(
+  context: IntegrationStepExecutionContext<TenableIntegrationConfig>,
+): Promise<void> {
+  const { jobState, logger } = context;
+
+  await jobState.iterateEntities(
+    { _type: Entities.CONTAINER_IMAGE._type },
+    async (imageEntity) => {
+      const image = getRawData<ContainerImage>(imageEntity);
+
+      if (!image) {
+        logger.warn(
+          {
+            _key: imageEntity._key,
+          },
+          'Could not fetch raw data for container image entity',
+        );
+        return;
+      }
+      const { repoName } = image;
+      const repoEntity = await jobState.findEntity(
+        generateEntityKey(Entities.CONTAINER_REPOSITORY._type, repoName),
+      );
+      if (repoEntity) {
+        await jobState.addRelationship(
+          createDirectRelationship({
+            _class: RelationshipClass.HAS,
+            from: repoEntity,
+            to: imageEntity,
+          }),
+        );
+      }
+    },
+  );
 }
 
 export async function fetchContainerReports(
@@ -57,24 +123,28 @@ export async function fetchContainerReports(
   });
 
   await jobState.iterateEntities(
-    { _type: Entities.CONTAINER._type },
-    async (containerEntity) => {
-      const container = getRawData<Container>(containerEntity);
+    { _type: Entities.CONTAINER_IMAGE._type },
+    async (imageEntity) => {
+      const image = getRawData<ContainerImage>(imageEntity);
 
-      if (!container) {
+      if (!image) {
         logger.warn(
           {
-            _key: containerEntity._key,
+            _key: imageEntity._key,
           },
-          'Could not fetch raw data for container entity',
+          'Could not fetch raw data for container image entity',
         );
         return;
       }
-
-      const report = await client.fetchReportByImageDigest(container.digest);
+      const { repoName, name: imageName, tag } = image;
+      const report = await client.fetchContainerImageReport(
+        repoName,
+        imageName,
+        tag,
+      );
       await jobState.addEntity(createReportEntity(report));
       await jobState.addRelationship(
-        createContainerReportRelationship(container, report),
+        createContainerReportRelationship(image, report),
       );
 
       for (const finding of report.findings) {
@@ -89,6 +159,13 @@ export async function fetchContainerReports(
 
         await jobState.addRelationship(
           createReportFindingRelationship(report.sha256, finding),
+        );
+        await jobState.addRelationship(
+          createDirectRelationship({
+            from: imageEntity,
+            _class: RelationshipClass.HAS,
+            to: findingEntity,
+          }),
         );
       }
 
@@ -105,6 +182,13 @@ export async function fetchContainerReports(
         await jobState.addRelationship(
           createReportMalwareRelationship(report.sha256, malware),
         );
+        await jobState.addRelationship(
+          createDirectRelationship({
+            from: imageEntity,
+            _class: RelationshipClass.HAS,
+            to: malwareEntity,
+          }),
+        );
       }
 
       for (const program of report.potentially_unwanted_programs) {
@@ -120,6 +204,13 @@ export async function fetchContainerReports(
         await jobState.addRelationship(
           createReportUnwantedProgramRelationship(report.sha256, program),
         );
+        await jobState.addRelationship(
+          createDirectRelationship({
+            from: imageEntity,
+            _class: RelationshipClass.HAS,
+            to: programEntity,
+          }),
+        );
       }
     },
   );
@@ -129,12 +220,28 @@ export const containerSteps: Step<
   IntegrationStepExecutionContext<TenableIntegrationConfig>
 >[] = [
   {
-    id: StepIds.CONTAINERS,
-    name: 'Fetch Containers',
-    entities: [Entities.CONTAINER],
-    relationships: [Relationships.ACCOUNT_HAS_CONTAINER],
+    id: StepIds.CONTAINER_REPOSITORIES,
+    name: 'Fetch Container Repositories',
+    entities: [Entities.CONTAINER_REPOSITORY],
+    relationships: [Relationships.ACCOUNT_HAS_CONTAINER_REPOSITORY],
     dependsOn: [StepIds.ACCOUNT],
-    executionHandler: fetchContainers,
+    executionHandler: fetchContainerRepositories,
+  },
+  {
+    id: StepIds.CONTAINER_IMAGES,
+    name: 'Fetch Container Images',
+    entities: [Entities.CONTAINER_IMAGE],
+    relationships: [Relationships.ACCOUNT_HAS_CONTAINER_IMAGE],
+    dependsOn: [StepIds.ACCOUNT],
+    executionHandler: fetchContainerImages,
+  },
+  {
+    id: StepIds.REPOSITORY_IMAGES_RELATIONSHIPS,
+    name: 'Build Repository Images Relationships',
+    entities: [],
+    relationships: [Relationships.CONTAINER_REPOSITORY_HAS_IMAGE],
+    dependsOn: [StepIds.CONTAINER_IMAGES, StepIds.CONTAINER_REPOSITORIES],
+    executionHandler: buildRepositoryImagesRelationship,
   },
   {
     id: StepIds.CONTAINER_REPORTS,
@@ -146,12 +253,16 @@ export const containerSteps: Step<
       Entities.CONTAINER_UNWANTED_PROGRAM,
     ],
     relationships: [
-      Relationships.CONTAINER_HAS_REPORT,
+      Relationships.CONTAINER_IMAGE_HAS_REPORT,
+      Relationships.CONTAINER_IMAGE_HAS_FINDING,
+      Relationships.CONTAINER_IMAGE_HAS_MALWARE,
+      Relationships.CONTAINER_IMAGE_HAS_UNWANTED_PROGRAM,
       Relationships.REPORT_IDENTIFIED_FINDING,
       Relationships.REPORT_IDENTIFIED_MALWARE,
       Relationships.REPORT_IDENTIFIED_UNWANTED_PROGRAM,
     ],
-    dependsOn: [StepIds.CONTAINERS],
+    mappedRelationships: [],
+    dependsOn: [StepIds.CONTAINER_IMAGES],
     executionHandler: fetchContainerReports,
   },
 ];
