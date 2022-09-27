@@ -605,8 +605,10 @@ export interface VulnerabilityExport {
   severity_default_id: number;
   severity_modification_type: string;
   first_found: string;
+  last_fixed?: string;
   last_found: string;
   state: string;
+  indexed: string;
 }
 
 export interface VulnerabilityExportAsset {

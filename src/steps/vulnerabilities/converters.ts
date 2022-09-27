@@ -348,6 +348,7 @@ export function createVulnerabilityEntity(
         priority,
         firstSeenOn: parseTimePropertyValue(vuln.first_found),
         lastSeenOn: parseTimePropertyValue(vuln.last_found),
+        lastFixed: parseTimePropertyValue(vuln.last_fixed),
       },
     },
   });
