@@ -17,6 +17,10 @@ export const StepIds = {
   CONTAINER_REPOSITORIES: 'step-container-repositories',
   REPOSITORY_IMAGES_RELATIONSHIPS: 'build-repository-images-relationships',
   CONTAINER_REPORTS: 'step-container-reports',
+  CONTAINER_FINDING_CVE_RELATIONSHIPS:
+    'build-container-finding-cve-relationships',
+  CONTAINER_FINDING_CWE_RELATIONSHIPS:
+    'build-container-finding-cwe-relationships',
 };
 
 export const Entities: Record<
@@ -182,21 +186,73 @@ export const Relationships: Record<
 };
 
 export const MappedRelationships: Record<
-  'ASSET_IS_HOST' | 'HOST_HAS_VULN' | 'VULNERABILITY_IS_CVE',
+  | 'ASSET_IS_AWS_INSTANCE'
+  | 'ASSET_IS_AZURE_VM'
+  | 'ASSET_IS_GOOGLE_COMPUTE_INSTANCE'
+  | 'ASSET_IS_TENABLE_ASSET'
+  | 'AWS_INSTANCE_HAS_VULN'
+  | 'AZURE_VM_HAS_VULN'
+  | 'GOOGLE_COMPUTE_INSTANCE_HAS_VULN'
+  | 'TENABLE_ASSET_HAS_VULN'
+  | 'VULNERABILITY_IS_CVE'
+  | 'CONTAINER_FINDING_IS_CVE'
+  | 'CONTAINER_FINDING_EXPLOITS_CWE',
   StepMappedRelationshipMetadata
 > = {
-  ASSET_IS_HOST: {
-    _type: 'tenable_asset_is_host',
+  ASSET_IS_AWS_INSTANCE: {
+    _type: 'tenable_asset_is_aws_instance',
     sourceType: Entities.ASSET._type,
     _class: RelationshipClass.IS,
-    targetType: 'host',
+    targetType: 'aws_instance',
     direction: RelationshipDirection.FORWARD,
   },
-  HOST_HAS_VULN: {
-    _type: 'host_has_tenable_vulnerability_finding',
+  ASSET_IS_AZURE_VM: {
+    _type: 'tenable_asset_is_azure_vm',
+    sourceType: Entities.ASSET._type,
+    _class: RelationshipClass.IS,
+    targetType: 'azure_vm',
+    direction: RelationshipDirection.FORWARD,
+  },
+  ASSET_IS_GOOGLE_COMPUTE_INSTANCE: {
+    _type: 'tenable_asset_is_google_compute_instance',
+    sourceType: Entities.ASSET._type,
+    _class: RelationshipClass.IS,
+    targetType: 'google_compute_instance',
+    direction: RelationshipDirection.FORWARD,
+  },
+  ASSET_IS_TENABLE_ASSET: {
+    _type: 'tenable_asset_is_tenable_asset',
+    sourceType: Entities.ASSET._type,
+    _class: RelationshipClass.IS,
+    targetType: 'tenable_asset',
+    direction: RelationshipDirection.FORWARD,
+  },
+  AWS_INSTANCE_HAS_VULN: {
+    _type: 'aws_instance_has_tenable_vulnerability_finding',
     sourceType: Entities.VULNERABILITY._type,
     _class: RelationshipClass.HAS,
-    targetType: 'host',
+    targetType: 'aws_instance',
+    direction: RelationshipDirection.REVERSE,
+  },
+  AZURE_VM_HAS_VULN: {
+    _type: 'azure_vm_has_tenable_vulnerability_finding',
+    sourceType: Entities.VULNERABILITY._type,
+    _class: RelationshipClass.HAS,
+    targetType: 'azure_vm',
+    direction: RelationshipDirection.REVERSE,
+  },
+  GOOGLE_COMPUTE_INSTANCE_HAS_VULN: {
+    _type: 'google_compute_instance_has_tenable_vulnerability_finding',
+    sourceType: Entities.VULNERABILITY._type,
+    _class: RelationshipClass.HAS,
+    targetType: 'google_compute_instance',
+    direction: RelationshipDirection.REVERSE,
+  },
+  TENABLE_ASSET_HAS_VULN: {
+    _type: 'tenable_asset_has_tenable_vulnerability_finding',
+    sourceType: Entities.VULNERABILITY._type,
+    _class: RelationshipClass.HAS,
+    targetType: 'tenable_asset',
     direction: RelationshipDirection.REVERSE,
   },
   VULNERABILITY_IS_CVE: {
@@ -206,4 +262,25 @@ export const MappedRelationships: Record<
     targetType: 'cve',
     direction: RelationshipDirection.FORWARD,
   },
+  CONTAINER_FINDING_IS_CVE: {
+    _type: 'tenable_container_finding_is_cve',
+    sourceType: Entities.CONTAINER_FINDING._type,
+    _class: RelationshipClass.IS,
+    targetType: 'cve',
+    direction: RelationshipDirection.FORWARD,
+  },
+  CONTAINER_FINDING_EXPLOITS_CWE: {
+    _type: 'tenable_container_finding_exploits_cwe',
+    sourceType: Entities.CONTAINER_FINDING._type,
+    _class: RelationshipClass.EXPLOITS,
+    targetType: 'cwe',
+    direction: RelationshipDirection.FORWARD,
+  },
 };
+
+export enum HostTypes {
+  TENABLE_ASSET = 'tenable_asset',
+  AWS_INSTANCE = 'aws_instance',
+  AZURE_VM = 'azure_vm',
+  GOOGLE_COMPUTE_INSTANCE = 'google_compute_instance',
+}

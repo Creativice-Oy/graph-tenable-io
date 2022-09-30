@@ -4,7 +4,7 @@ import {
   IntegrationLogger,
   parseTimePropertyValue,
 } from '@jupiterone/integration-sdk-core';
-import { Entities } from '../../constants';
+import { Entities, HostTypes, MappedRelationships } from '../../constants';
 import { AssetExport, VulnerabilityExport } from '../../tenable/client';
 import { generateEntityKey } from '../../utils/generateKey';
 import { TargetEntity } from '../../utils/targetEntities';
@@ -140,34 +140,34 @@ export function createTargetHostEntity(data: AssetExport): TargetEntity {
     // TODO test EC2 instance mapping and attempt to build _key property
     targetFilter = {
       instanceId: data.aws_ec2_instance_id,
-      _type: 'aws_instance',
+      _type: HostTypes.AWS_INSTANCE,
     };
   } else if (data.azure_resource_id) {
     targetFilter = {
       // See createVirtualMachineEntity()  https://github.com/JupiterOne/graph-azure/blob/main/src/steps/resource-manager/compute/converters.ts#L33
       _key: data.azure_resource_id.toLowerCase(),
-      _type: 'azure_vm',
+      _type: HostTypes.AZURE_VM,
     };
   } else if (data.gcp_instance_id) {
     // TODO test GCP instance mapping and attempt to build _key property
     targetFilter = {
       id: data.gcp_instance_id,
       projectId: data.gcp_project_id,
-      _type: 'google_compute_instance',
+      _type: HostTypes.GOOGLE_COMPUTE_INSTANCE,
     };
   } else {
     // just make sure that at least all of the mapped relationships from this integration target the same entity.
     // `ipv4`, `ipv6`, `mac_address`, and `fqdn` are all arrays, so filtering on them won't do.
     targetFilter = {
       id: data.id,
-      _type: 'tenable_asset',
+      _type: HostTypes.TENABLE_ASSET,
     };
   }
 
   const targetEntity = {
     // JUPITERONE REQUIRED PROPERTIES
     _class: 'Host',
-    _type: 'tenable_asset',
+    _type: HostTypes.TENABLE_ASSET,
     _key: data.id,
   };
 
@@ -179,6 +179,32 @@ export function createTargetHostEntity(data: AssetExport): TargetEntity {
     targetFilterKeys: [Object.keys(targetFilter)],
     skipTargetCreation: true,
   };
+}
+
+export function getDerivedAssetHostRelationship(host: TargetEntity) {
+  switch (host.targetEntity._type) {
+    case HostTypes.AWS_INSTANCE:
+      return MappedRelationships.ASSET_IS_AWS_INSTANCE._type;
+    case HostTypes.AZURE_VM:
+      return MappedRelationships.ASSET_IS_AZURE_VM._type;
+    case HostTypes.GOOGLE_COMPUTE_INSTANCE:
+      return MappedRelationships.ASSET_IS_GOOGLE_COMPUTE_INSTANCE._type;
+    default:
+      return MappedRelationships.ASSET_IS_TENABLE_ASSET._type;
+  }
+}
+
+export function getDerivedHostVulnRelationship(host: TargetEntity) {
+  switch (host.targetEntity._type) {
+    case HostTypes.AWS_INSTANCE:
+      return MappedRelationships.AWS_INSTANCE_HAS_VULN._type;
+    case HostTypes.AZURE_VM:
+      return MappedRelationships.AZURE_VM_HAS_VULN._type;
+    case HostTypes.GOOGLE_COMPUTE_INSTANCE:
+      return MappedRelationships.GOOGLE_COMPUTE_INSTANCE_HAS_VULN._type;
+    default:
+      return MappedRelationships.TENABLE_ASSET_HAS_VULN._type;
+  }
 }
 
 // TODO: Move these into integration SDK and push out to other scanner

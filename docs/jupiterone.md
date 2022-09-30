@@ -115,11 +115,19 @@ The following relationships are created:
 
 The following mapped relationships are created:
 
-| Source Entity `_type`           | Relationship `_class` | Target Entity `_type` | Direction |
-| ------------------------------- | --------------------- | --------------------- | --------- |
-| `tenable_vulnerability_finding` | **HAS**               | `*host*`              | REVERSE   |
-| `tenable_asset`                 | **IS**                | `*host*`              | FORWARD   |
-| `tenable_vulnerability_finding` | **IS**                | `*cve*`               | FORWARD   |
+| Source Entity `_type`           | Relationship `_class` | Target Entity `_type`       | Direction |
+| ------------------------------- | --------------------- | --------------------------- | --------- |
+| `tenable_vulnerability_finding` | **HAS**               | `*aws_instance*`            | REVERSE   |
+| `tenable_vulnerability_finding` | **HAS**               | `*azure_vm*`                | REVERSE   |
+| `tenable_vulnerability_finding` | **HAS**               | `*google_compute_instance*` | REVERSE   |
+| `tenable_vulnerability_finding` | **HAS**               | `*tenable_asset*`           | REVERSE   |
+| `tenable_asset`                 | **IS**                | `*aws_instance*`            | FORWARD   |
+| `tenable_asset`                 | **IS**                | `*azure_vm*`                | FORWARD   |
+| `tenable_asset`                 | **IS**                | `*google_compute_instance*` | FORWARD   |
+| `tenable_asset`                 | **IS**                | `*tenable_asset*`           | FORWARD   |
+| `tenable_container_finding`     | **EXPLOITS**          | `*cwe*`                     | FORWARD   |
+| `tenable_container_finding`     | **IS**                | `*cve*`                     | FORWARD   |
+| `tenable_vulnerability_finding` | **IS**                | `*cve*`                     | FORWARD   |
 
 <!--
 ********************************************************************************

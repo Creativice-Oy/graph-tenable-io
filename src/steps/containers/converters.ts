@@ -15,6 +15,7 @@ import {
 } from '../../utils/generateKey';
 import getTime from '../../utils/getTime';
 import { parseTimePropertyValue } from '@jupiterone/integration-sdk-core';
+import { TargetEntity } from '../../utils/targetEntities';
 
 function generateImageKey(image: ContainerImage) {
   return `${image.repoName}:${image.name}:${image.tag}`;
@@ -184,6 +185,10 @@ export function createContainerFindingEntity(finding: ContainerFinding) {
     displayName: displayName(finding),
     referenceId: nvdFinding.reference_id,
     cve: nvdFinding.cve,
+    cwe: nvdFinding.cwe,
+    cpe: nvdFinding.cpe,
+    recommendation: nvdFinding.remediation,
+    references: nvdFinding.references,
     publishedDate: parseTimePropertyValue(nvdFinding.published_date),
     modifiedDate: parseTimePropertyValue(nvdFinding.modified_date),
     description: nvdFinding.description,
@@ -195,8 +200,6 @@ export function createContainerFindingEntity(finding: ContainerFinding) {
     availabilityImpact: nvdFinding.availability_impact,
     confidentialityImpact: nvdFinding.confidentiality_impact,
     integrityImpact: nvdFinding.integrity_impact,
-    cwe: nvdFinding.cwe,
-    remediation: nvdFinding.remediation,
     numericSeverity,
     severity,
   };
@@ -326,5 +329,33 @@ export function createReportUnwantedProgramRelationship(
     _fromEntityKey: parentKey,
     _key: relationKey,
     _toEntityKey: childKey,
+  };
+}
+
+export function createTargetCveEntity(finding: ContainerFinding): TargetEntity {
+  const cve: string = finding.nvdFinding.cve;
+  return {
+    targetEntity: {
+      _class: 'Vulnerability',
+      _type: 'cve',
+      _key: cve.toLowerCase(),
+      name: cve.toUpperCase(),
+      displayName: cve.toUpperCase(),
+    },
+    targetFilterKeys: [['_type', '_key']],
+  };
+}
+
+export function createTargetCweEntity(finding: ContainerFinding): TargetEntity {
+  const cwe: string = finding.nvdFinding.cwe;
+  return {
+    targetEntity: {
+      _class: 'Weakness',
+      _type: 'cwe',
+      _key: cwe.toLowerCase(),
+      name: cwe.toUpperCase(),
+      displayName: cwe.toUpperCase(),
+    },
+    targetFilterKeys: [['_type', '_key']],
   };
 }

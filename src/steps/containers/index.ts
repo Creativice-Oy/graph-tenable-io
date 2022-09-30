@@ -6,7 +6,12 @@ import {
   Step,
 } from '@jupiterone/integration-sdk-core';
 import { TenableIntegrationConfig } from '../../config';
-import { Entities, Relationships, StepIds } from '../../constants';
+import {
+  Entities,
+  MappedRelationships,
+  Relationships,
+  StepIds,
+} from '../../constants';
 import {
   containerFindingEntityKey,
   createReportUnwantedProgramRelationship,
@@ -17,10 +22,12 @@ import {
   unwantedProgramEntityKey,
   createContainerRepositoryEntity,
   createAccountContainerRepositoryRelationship,
+  createTargetCveEntity,
+  createTargetCweEntity,
 } from './converters';
 import { getAccount } from '../../initializeContext';
 import TenableClient from '../../tenable/TenableClient';
-import { ContainerImage } from '../../tenable/client';
+import { ContainerFinding, ContainerImage } from '../../tenable/client';
 import {
   createAccountContainerImageRelationship,
   createContainerImageEntity,
@@ -30,6 +37,7 @@ import {
   createReportFindingRelationship,
 } from './converters';
 import { generateEntityKey } from '../../utils/generateKey';
+import { createRelationshipToTargetEntity } from '../../utils/targetEntities';
 
 export async function fetchContainerRepositories(
   context: IntegrationStepExecutionContext<TenableIntegrationConfig>,
@@ -216,6 +224,88 @@ export async function fetchContainerReports(
   );
 }
 
+export async function buildContainerFindingCveRelationships(
+  context: IntegrationStepExecutionContext<TenableIntegrationConfig>,
+): Promise<void> {
+  const { jobState, logger } = context;
+
+  await jobState.iterateEntities(
+    { _type: Entities.CONTAINER_FINDING._type },
+    async (findingEntity) => {
+      const findingRawData = getRawData<ContainerFinding>(findingEntity);
+
+      if (!findingRawData) {
+        logger.warn(
+          {
+            _key: findingEntity._key,
+          },
+          'Could not get finding raw data from container finding entity.',
+        );
+        return;
+      }
+      if (!findingRawData.nvdFinding.cve) return;
+      const targetCveEntity = createTargetCveEntity(findingRawData);
+      const findingCveMappedRelationship = createRelationshipToTargetEntity({
+        _type: MappedRelationships.CONTAINER_FINDING_IS_CVE._type,
+        from: findingEntity,
+        _class: RelationshipClass.IS,
+        to: targetCveEntity,
+      });
+      if (await jobState.hasKey(findingCveMappedRelationship._key)) {
+        logger.warn(
+          {
+            _key: findingCveMappedRelationship._key,
+          },
+          'Warning: duplicate tenable_container_finding_is_cve _key encountered',
+        );
+        return;
+      }
+      await jobState.addRelationship(findingCveMappedRelationship);
+    },
+  );
+}
+
+export async function buildContainerFindingCweRelationships(
+  context: IntegrationStepExecutionContext<TenableIntegrationConfig>,
+) {
+  const { jobState, logger } = context;
+
+  await jobState.iterateEntities(
+    { _type: Entities.CONTAINER_FINDING._type },
+    async (findingEntity) => {
+      const findingRawData = getRawData<ContainerFinding>(findingEntity);
+
+      if (!findingRawData) {
+        logger.warn(
+          {
+            _key: findingEntity._key,
+          },
+          'Could not get finding raw data from container finding entity.',
+        );
+        return;
+      }
+      if (!findingRawData.nvdFinding.cwe) return;
+      const targetCweEntity = createTargetCweEntity(findingRawData);
+      const findingCweMappedRelationship = createRelationshipToTargetEntity({
+        _type: MappedRelationships.CONTAINER_FINDING_EXPLOITS_CWE._type,
+        from: findingEntity,
+        _class: RelationshipClass.EXPLOITS,
+        to: targetCweEntity,
+      });
+      if (await jobState.hasKey(findingCweMappedRelationship._key)) {
+        logger.warn(
+          {
+            _key: findingCweMappedRelationship._key,
+          },
+          'Warning: duplicate tenable_container_finding_exploits_cwe _key encountered',
+        );
+        return;
+      }
+      await jobState.addRelationship(findingCweMappedRelationship);
+    },
+  );
+}
+
 export const containerSteps: Step<
   IntegrationStepExecutionContext<TenableIntegrationConfig>
 >[] = [
@@ -264,5 +354,23 @@ export const containerSteps: Step<
     mappedRelationships: [],
     dependsOn: [StepIds.CONTAINER_IMAGES],
     executionHandler: fetchContainerReports,
+  },
+  {
+    id: StepIds.CONTAINER_FINDING_CVE_RELATIONSHIPS,
+    name: 'Build Container Finding CVE Relationships',
+    entities: [],
+    relationships: [],
+    mappedRelationships: [MappedRelationships.CONTAINER_FINDING_IS_CVE],
+    dependsOn: [StepIds.CONTAINER_REPORTS],
+    executionHandler: buildContainerFindingCveRelationships,
+  },
+  {
+    id: StepIds.CONTAINER_FINDING_CWE_RELATIONSHIPS,
+    name: 'Build Container Finding CWE Relationships',
+    entities: [],
+    relationships: [],
+    mappedRelationships: [MappedRelationships.CONTAINER_FINDING_EXPLOITS_CWE],
+    dependsOn: [StepIds.CONTAINER_REPORTS],
+    executionHandler: buildContainerFindingCweRelationships,
   },
 ];
