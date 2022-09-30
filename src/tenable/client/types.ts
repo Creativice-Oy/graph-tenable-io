@@ -2,6 +2,15 @@ export interface Dictionary<T> {
   [key: string]: T;
 }
 
+export type Paginated<T> = {
+  items: T;
+  pagination: {
+    offset: number;
+    limit: number;
+    total: number;
+  };
+};
+
 // -- https://cloud.tenable.com/users
 
 export interface User {
@@ -191,19 +200,62 @@ export interface AssetSummary {
 
 // --
 
-export interface Container {
-  number_of_vulnerabilities: string;
+export interface ContainerRepository {
   name: string;
-  size: string;
+  imagesCount: number;
+  labelsCount: number;
+  vulnerabilitiesCount: number;
+  malwareCount: number;
+  pullCount: number;
+  pushCount: number;
+  totalBytes: number;
+}
+
+export interface Layer {
+  size: number;
   digest: string;
-  repo_name: string;
-  score: string;
-  id: string;
+}
+
+export interface Image {
+  repoId: string;
+  repoName: string;
+  name: string;
+  tag: string;
+  digest: string;
+  hasReport: boolean;
+  hasInventory: boolean;
   status: string;
-  created_at: string;
-  repo_id: string;
-  platform: string;
-  updated_at: string;
+  lastJobStatus: string;
+  score: number;
+  numberOfVulns: number;
+  numberOfMalware: number;
+  pullCount: string;
+  pushCount: string;
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt: string;
+  imageHash: string;
+  size: string;
+  layers: Layer[];
+  os: string;
+  osVersion: string;
+}
+
+export interface ContainerImageDetails {
+  name: string;
+  repository: string;
+  tag: string;
+  digest: string;
+  riskScore: number;
+  numberOfVulns: number;
+  numberOfMalware: number;
+  reportUrl: string;
+  uploadedAt: string;
+  lastScanned: string;
+  status: string;
+  size: string;
+  layers: Layer[];
 }
 
 export type ContainerVulnerability =
@@ -251,6 +303,8 @@ export interface ContainerFinding {
      */
     cpe: string[];
 
+    snyk_id: string;
+
     published_date: string;
     modified_date: string; // possibly blank
     description: string;
@@ -260,6 +314,8 @@ export interface ContainerFinding {
      * vulnerability that are constant over time and user environments).
      */
     cvss_score: string;
+
+    cvss_vector: string;
 
     /**
      * The CVSSv2 Access Vector (AV) metric for the vulnerability indicating how
@@ -339,9 +395,7 @@ export interface ContainerFinding {
 interface Package {
   name: string;
   version: string;
-  release: string;
-  epoch: string;
-  rawString: string;
+  type: string;
 }
 
 export interface ContainerUnwantedProgram {
@@ -449,7 +503,9 @@ export interface AssetVulnerabilityRiskInfo {
 
 // --
 
-export type ContainersResponse = Container[];
+export type ContainerRepositoryResponse = Paginated<ContainerRepository[]>;
+export type ContainerImagesResponse = Paginated<Image[]>;
+export type ContainerImage = Image & ContainerImageDetails;
 
 export type ReportResponse = ContainerReport;
 
@@ -549,8 +605,10 @@ export interface VulnerabilityExport {
   severity_default_id: number;
   severity_modification_type: string;
   first_found: string;
+  last_fixed?: string;
   last_found: string;
   state: string;
+  indexed: string;
 }
 
 export interface VulnerabilityExportAsset {
@@ -582,17 +640,17 @@ export interface VulnerabilityExportPlugin {
   type: string;
   version: string;
   xrefs: VulnerabilityExportXrefsEntity[];
-  cpe: string[];
+  cpe?: string[];
   cvss3_base_score: number | null;
   cvss3_temporal_score: string;
   cvss3_vector: VulnerabilityExportCvss3Vector | null;
   cvss3_temporal_vector: any;
   cvss_base_score: number | null;
   cvss_temporal_score: string;
-  cvss_vector: VulnerabilityExportCvssVector | null;
+  cvss_vector?: VulnerabilityExportCvssVector | null;
   cvss_temporal_vector: any;
   bid: number[];
-  cve: string[];
+  cve?: string[];
   exploit_available: boolean | null;
   exploit_framework_canvas: boolean | null;
   exploit_framework_core: boolean | null;

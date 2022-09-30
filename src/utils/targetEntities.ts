@@ -15,11 +15,13 @@ export type TargetEntity = {
 };
 
 export function createRelationshipToTargetEntity(options: {
+  _type?: string;
   from: Entity;
   _class: RelationshipClass;
   to: TargetEntity;
 }): MappedRelationship {
   return createMappedRelationship({
+    _type: options._type,
     source: options.from,
     _class: options._class,
     target: options.to.targetEntity,
@@ -29,11 +31,13 @@ export function createRelationshipToTargetEntity(options: {
 }
 
 export function createRelationshipFromTargetEntity(options: {
+  _type?: string;
   from: TargetEntity;
   _class: RelationshipClass;
   to: Entity;
 }): MappedRelationship {
   return createMappedRelationship({
+    _type: options._type,
     source: options.to,
     _class: options._class,
     target: options.from.targetEntity,

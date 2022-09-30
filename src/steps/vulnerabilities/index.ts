@@ -15,10 +15,12 @@ import {
 import TenableClient from '../../tenable/TenableClient';
 import { AssetExport, VulnerabilityExport } from '../../tenable/client';
 import {
-  createTargetHostEntity,
   createAssetEntity,
   createVulnerabilityEntity,
   createTargetCveEntities,
+  createTargetHostEntity,
+  getDerivedAssetHostRelationship,
+  getDerivedHostVulnRelationship,
 } from './converters';
 import {
   createRelationshipFromTargetEntity,
@@ -62,11 +64,13 @@ export async function fetchAssets(
           to: assetEntity,
         }),
       );
+      const targetHostEntity = createTargetHostEntity(asset);
       await jobState.addRelationship(
         createRelationshipToTargetEntity({
+          _type: getDerivedAssetHostRelationship(targetHostEntity),
           from: assetEntity,
           _class: RelationshipClass.IS,
-          to: createTargetHostEntity(asset),
+          to: targetHostEntity,
         }),
       );
     },
@@ -165,9 +169,11 @@ export async function buildAssetVulnerabilityRelationships(
         }),
       );
 
+      const targetHostEntity = createTargetHostEntity(assetRawData);
       await jobState.addRelationship(
         createRelationshipFromTargetEntity({
-          from: createTargetHostEntity(assetRawData),
+          _type: getDerivedHostVulnRelationship(targetHostEntity),
+          from: targetHostEntity,
           _class: RelationshipClass.HAS,
           to: vulnEntity,
         }),
@@ -197,6 +203,7 @@ export async function buildVulnerabilityCveRelationships(
 
       for (const targetCveEntity of createTargetCveEntities(vulnRawData)) {
         const vulnCveMappedRelationship = createRelationshipToTargetEntity({
+          _type: MappedRelationships.VULNERABILITY_IS_CVE._type,
           from: vulnEntity,
           _class: RelationshipClass.IS,
           to: targetCveEntity,
@@ -224,7 +231,12 @@ export const scanSteps: Step<
     name: 'Fetch Assets',
     entities: [Entities.ASSET],
     relationships: [Relationships.ACCOUNT_HAS_ASSET],
-    mappedRelationships: [MappedRelationships.ASSET_IS_HOST],
+    mappedRelationships: [
+      MappedRelationships.ASSET_IS_AWS_INSTANCE,
+      MappedRelationships.ASSET_IS_AZURE_VM,
+      MappedRelationships.ASSET_IS_GOOGLE_COMPUTE_INSTANCE,
+      MappedRelationships.ASSET_IS_TENABLE_ASSET,
+    ],
     dependsOn: [StepIds.ACCOUNT],
     executionHandler: fetchAssets,
   },
@@ -241,7 +253,12 @@ export const scanSteps: Step<
     name: 'Build Asset -> Vulnerability Relationships',
     entities: [],
     relationships: [Relationships.ASSET_HAS_VULN],
-    mappedRelationships: [MappedRelationships.HOST_HAS_VULN],
+    mappedRelationships: [
+      MappedRelationships.AWS_INSTANCE_HAS_VULN,
+      MappedRelationships.AZURE_VM_HAS_VULN,
+      MappedRelationships.GOOGLE_COMPUTE_INSTANCE_HAS_VULN,
+      MappedRelationships.TENABLE_ASSET_HAS_VULN,
+    ],
     dependsOn: [StepIds.ASSETS, StepIds.VULNERABILITIES],
     executionHandler: buildAssetVulnerabilityRelationships,
   },
